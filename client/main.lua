@@ -3,7 +3,17 @@ local emoteBinds, isActionsLimited, isPlayingAnimation = json.decode(GetResource
 local isRagdoll, isPointing, returnStance = false, false, false
 local emoteCooldown, lastEmote, lastVariant, ptfxCanHold, otherPlayer, clone = 0, nil, nil, false, nil, nil
 local playerParticles, keybinds, registeredEmotes, cloneProps = {}, {}, {}, {}
-local lang = require('locales.' .. Config.Language)
+local function try_require_locale(loc)
+    if not loc or loc == '' then return nil end
+    local ok, res = pcall(require, 'locales.' .. loc)
+    if ok and type(res) == 'table' then return res end
+    return nil
+end
+
+-- Determine menu locale from server convar `ox_locale`, fallback to config then 'en'
+local serverLocale = GetConvar('ox_locale', '') or ''
+local chosenLocale = serverLocale ~= '' and try_require_locale(serverLocale) and serverLocale or (try_require_locale(Config.Language) and Config.Language or 'en')
+local lang = try_require_locale(chosenLocale) or try_require_locale(Config.Language) or try_require_locale('en') or {}
 local pedTypes = require('data.ped_types')
 local pedsObjects = {}
 
@@ -55,6 +65,105 @@ for _type, emoteList in pairs(custom) do
     end
 end
 
+-- Mark base entries as English by default so we can filter menu language later
+for _type, list in pairs(AnimationList) do
+    for i = 1, #list do
+        local e = list[i]
+        if e and not e.__locale then e.__locale = 'en' end
+    end
+end
+
+-- Load Portuguese translations as aliases (commands in pt-br) so both english and
+-- portuguese commands work. Matching is done by unique resource keys (Walk,
+-- Scenario, Expression or Animation+Dictionary).
+local function shallowCopy(t)
+    local out = {}
+    for k, v in pairs(t) do out[k] = v end
+    return out
+end
+
+local translationMapping = {
+    Walks = { file = 'walks_pt-br', keys = { 'Walk' } },
+    Scenarios = { file = 'scenarios_pt-br', keys = { 'Scenario' } },
+    Expressions = { file = 'expressions_pt-br', keys = { 'Expression' } },
+    Emotes = { file = 'emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+    PropEmotes = { file = 'prop_emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+    ConsumableEmotes = { file = 'consumable_emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+    DanceEmotes = { file = 'dance_emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+    SynchronizedEmotes = { file = 'synchronized_emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+    AnimalEmotes = { file = 'animal_emotes_pt-br', keys = { 'Animation', 'Dictionary' } },
+}
+
+local function entriesMatch(keys, a, b)
+    for i = 1, #keys do
+        local k = keys[i]
+        if not a[k] or not b[k] or a[k] ~= b[k] then return false end
+    end
+    return true
+end
+
+for _type, info in pairs(translationMapping) do
+    local ok, transList = pcall(require, 'data.animations.' .. info.file)
+    if ok and type(transList) == 'table' then
+        for i = 1, #transList do
+            local trans = transList[i]
+            if trans and trans.Command then
+                local exists = false
+                for j = 1, #AnimationList[_type] do
+                    if AnimationList[_type][j].Command == trans.Command then
+                        exists = true
+                        break
+                    end
+                end
+
+                if not exists then
+                    local found = nil
+                    for j = 1, #AnimationList[_type] do
+                        local orig = AnimationList[_type][j]
+                        if entriesMatch(info.keys, trans, orig) then
+                            found = orig
+                            break
+                        end
+                    end
+
+                    if found then
+                        local alias = shallowCopy(found)
+                        alias.Command = trans.Command
+                        alias.Label = trans.Label or alias.Label
+                        -- mark alias with locale derived from filename (e.g. 'pt-br')
+                        local locale = info.file:match('_([%w%-]+)$') or 'pt-br'
+                        alias.__locale = locale
+                        AnimationList[_type][#AnimationList[_type] + 1] = alias
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Find if there is a translation for a given entry in the desired locale
+local function has_translation(_type, entry, locale)
+    if not entry or not locale or locale == 'en' then return false end
+    local info = translationMapping[_type]
+    if not info then return false end
+    for i = 1, #AnimationList[_type] do
+        local candidate = AnimationList[_type][i]
+        if candidate and candidate.__locale == locale and entriesMatch(info.keys, entry, candidate) then
+            return true
+        end
+    end
+    return false
+end
+
+local function should_show_entry(entry, _type)
+    if not entry then return false end
+    local entryLocale = entry.__locale or 'en'
+    if entryLocale == chosenLocale then return true end
+    -- if no translation exists for this entry in chosenLocale, show the English entry
+    if entryLocale == 'en' and not has_translation(_type, entry, chosenLocale) then return true end
+    return false
+end
+
 -- Functions
 ---Closes the animation menu
 function closeMenu()
@@ -89,7 +198,7 @@ function listEmotes(_type)
     for i = 1, emoteCount do
         local emote = emotes[i]
 
-        if emote and emote.Label and emote.Command then
+        if emote and emote.Label and emote.Command and should_show_entry(emote, _type) then
             emoteTable[#emoteTable + 1] = '- ' .. emote.Label .. ' - ' .. emote.Command
         end
     end
@@ -232,7 +341,7 @@ function addEmotesToMenu(_type, command)
             for emote = 1, #AnimationList[_type] do
                 local _emote = AnimationList[_type][emote]
 
-                if _emote and _emote.Label and not _emote.Hide then
+                if _emote and _emote.Label and not _emote.Hide and should_show_entry(_emote, _type) then
                     mainMenuOptions[option].values[#mainMenuOptions[option].values + 1] = {label = _emote.Label, description = ('%s %s'):format(command, _emote.Command)}
                 end
             end
@@ -246,7 +355,7 @@ function addEmotesToMenu(_type, command)
             for emote = 1, #AnimationList[_type] do
                 local _emote = AnimationList[_type][emote]
 
-                if _emote and _emote.Label and not _emote.Hide then
+                if _emote and _emote.Label and not _emote.Hide and should_show_entry(_emote, _type) then
                     emoteMenuOptions[option].values[#emoteMenuOptions[option].values + 1] = {label = _emote.Label, description = ('%s %s'):format(command, _emote.Command)}
                 end
             end
@@ -272,8 +381,7 @@ function addEmotesToRadial(_type, id, icon, cancel)
 
     for i = 1, #AnimationList[_type] do
         local emote = AnimationList[_type][i]
-
-        if emote and emote.Label and not emote.Hide then
+        if emote and emote.Label and not emote.Hide and should_show_entry(emote, _type) then
             options[#options + 1] = {
                 label = emote.Label,
                 icon = icon,
@@ -580,7 +688,7 @@ function playEmote(data, variation, ped)
                     }
                 end
 
-                if ped then 
+                if ped then
                     local coords = GetEntityCoords(ped)
                     for i = 1, #propList do
                         local prop = propList[i]
@@ -1725,7 +1833,7 @@ if Config.HandsUpKey ~= '' then
         end,
         onReleased = function(data)
             if isActionsLimited then return end
-            
+
             if not data.isInAnim then return end
             ClearPedTasks(cache.ped)
             data.isInAnim = false

@@ -14,13 +14,7 @@ dependencies {
     'ox_lib'
 }
 
-files {
-    'locales/*.lua',
-    'data/*.lua',
-    'data/**/*.lua',
-    'custom_emotes.lua',
-    'prop_dump.lua'
-}
+
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -34,6 +28,19 @@ server_scripts {
 client_scripts {
     'client/*.lua',
     'compat/*.lua'
+}
+
+ui_page 'html/index.html'
+
+files {
+    'locales/*.lua',
+    'data/*.lua',
+    'data/**/*.lua',
+    'custom_emotes.lua',
+    'prop_dump.lua',
+    'html/index.html',
+    'html/script.js',
+    'html/style.css'
 }
 
 data_file 'DLC_ITYP_REQUEST' 'bzzz_foodpack.ytyp'

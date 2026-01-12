@@ -1,5 +1,5 @@
 local gameBuild, currentWalk, currentExpression = GetGameBuildNumber(), GetResourceKvpString('animations_walkstyle') or 'default', GetResourceKvpString('animations_expression') or 'default'
-local emoteBinds, isActionsLimited, isPlayingAnimation = json.decode(GetResourceKvpString('animations_binds')) or {}, false, false
+local isActionsLimited, isPlayingAnimation = false, false
 local isRagdoll, isPointing, returnStance = false, false, false
 local emoteCooldown, lastEmote, lastVariant, ptfxCanHold, otherPlayer, clone = 0, nil, nil, false, nil, nil
 local playerParticles, keybinds, registeredEmotes, cloneProps = {}, {}, {}, {}
@@ -1339,43 +1339,7 @@ end
 
 ---Open the emote bind menu
 function openBindMenu()
-    lib.registerMenu({
-        id = 'animations_emote_binds_menu',
-        title = lang.emote_menu,
-        position = Config.MenuPosition,
-        options = emoteMenuBindsOptions,
-        onClose = function()
-            lib.showMenu('animations_main_menu')
-        end,
-    }, function(selected, _, option)
-        if isActionsLimited then return end
-
-        if option == 'animations_create_bind' then
-            local query = lib.inputDialog(lang.create_emote_bind, {lang.emote_command_name})
-
-            if not query then return end
-
-            local _type, emote = getEmoteByCommand(query[1] --[[@as string]])
-
-            if not _type or _type == 'Walks' then
-                notify('error', lang.not_valid_emote)
-                return
-            end
-
-            if emote?.BlockBinding then
-                notify('error', lang.not_allowed_to_bind)
-                return
-            end
-
-            createBind(selected, emote --[[@as table]])
-
-            return
-        end
-
-        deleteBind(option)
-    end)
-
-    lib.showMenu('animations_emote_binds_menu')
+    exports[GetCurrentResourceName()]:OpenBindMenu()
 end
 
 local IsPedFalling = IsPedFalling
@@ -1520,34 +1484,7 @@ if not Config.EnableSearch then
     end)
 end
 
-if Config.EnableEmoteBinds then
-    local binds = emoteBinds
 
-    for i = 1, 5 do
-        local command = ('emotebind-%s'):format(i)
-
-        RegisterCommand(command, function()
-            local bind = emoteBinds[i]
-            if bind then
-                playEmoteByCommand(bind.Emote)
-            end
-        end, false)
-
-        RegisterKeyMapping(command, command, 'keyboard', '')
-    end
-
-    for i = 1, #binds do
-        local bind = binds[i]
-
-        if bind then
-            emoteMenuBindsOptions[i] = {label = bind.Label, description = lang.delete_bind, icon = ('fa-solid fa-%s'):format(i), args = bind.Index}
-        end
-    end
-else
-    mainMenuOptions = removeFromTable(mainMenuOptions, function(_table, _index)
-        return _table[_index].args ~= 'animations_emote_binds_menu'
-    end)
-end
 
 if Config.EnableConsumableEmotes then
     addEmotesToMenu('ConsumableEmotes', Config.EmotePlayCommands[1])

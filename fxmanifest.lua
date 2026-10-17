@@ -1,33 +1,62 @@
---- https://discord.gg/scully ---
 fx_version 'cerulean'
-
+use_experimental_fxv2_oal 'yes'
+lua54 'yes'
 game 'gta5'
 
-lua54 'yes'
-use_experimental_fxv2_oal 'yes'
-
-version '1.9.9f'
+name 'scully_emotemenu'
+author 'https://discord.gg/scully'
+version '2.1.0'
+repository 'https://github.com/Scullyy/scully_emotemenu'
+description 'An emote menu for the FiveM community.'
 
 dependencies {
-    '/server:5848',
+    '/server:7290',
     '/onesync',
     'ox_lib'
 }
 
-
-
-shared_scripts {
-    '@ox_lib/init.lua',
-    'config.lua'
+ox_libs {
+    'locale'
 }
 
-server_scripts {
-    'server/*.lua'
+shared_scripts {
+    '@ox_lib/init.lua'
 }
 
 client_scripts {
-    'client/*.lua',
-    'compat/*.lua'
+    'client/main.lua',
+    'client/menu.lua'
+}
+
+server_scripts {
+    'server/version_check.lua',
+    'server/main.lua'
+}
+
+files {
+    'locales/*.json',
+    'shared/data/config.lua',
+    'shared/data/expressions.lua',
+    'shared/data/scenarios.lua',
+    'shared/data/walks.lua',
+    'shared/data/emotes/animal_emotes.lua',
+    'shared/data/emotes/consumable_emotes.lua',
+    'shared/data/emotes/dance_emotes.lua',
+    'shared/data/emotes/general_emotes.lua',
+    'shared/data/emotes/prop_emotes.lua',
+    'shared/data/emotes/synchronized_dance_emotes.lua',
+    'shared/data/emotes/synchronized_emotes.lua',
+    'shared/data/emotes/exit_emotes.lua',
+    'shared/modules/utils.lua',
+    'client/data/ped_types.lua',
+    'client/data/scenario_models.lua',
+    'client/modules/handsup.lua',
+    'client/modules/kvp.lua',
+    'client/modules/placement.lua',
+    'client/modules/point.lua',
+    'client/modules/preview.lua',
+    'client/modules/ragdoll.lua',
+    'client/modules/stance.lua'
 }
 
 files {
